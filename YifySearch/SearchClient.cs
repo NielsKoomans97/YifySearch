@@ -13,7 +13,7 @@ namespace YifySearch
 {
     public class SearchClient
     {
-        public event EventHandler<SearchResult> SearchCompleted;
+        public event EventHandler<SearchCompleted> SearchCompleted;
 
         public int Limit { get; set; } = 20;
         public int MinimumRating { get; set; } = 0;
@@ -101,8 +101,11 @@ namespace YifySearch
                 var data = item.data;
                 var movies = (JArray)data.movies;
 
+                if (movies.Count < 0)
+                    SearchCompleted?.Invoke(this, new SearchCompleted(null, "No movies found", "No movies were found with this query. Please check for errors and try again."));
+
                 SearchCompleted?.Invoke(this,
-                    new SearchResult(movies.ToObject<Movie[]>()));
+                    new SearchCompleted(movies.ToObject<Movie[]>(), item.status, item.status_message));
 
                 movies.Clear();
             }
