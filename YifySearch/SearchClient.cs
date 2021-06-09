@@ -2,15 +2,46 @@
 using Newtonsoft.Json.Linq;
 using System;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using YifySearch.Enums;
 using YifySearch.Events;
+using YifySearch.Extensions;
 using YifySearch.Models;
 
 namespace YifySearch
 {
+    namespace Extensions
+    {
+        public static class EnumExtensions
+        {
+            public static string Get(this Enum @enum)
+            {
+                var t = @enum.GetType();
+                var attributes = t.GetCustomAttributes<EnumStringAttribute>();
+
+                if (attributes == null || !attributes.Any())
+                    return string.Empty;
+
+                return attributes.FirstOrDefault().Value;
+            }
+        }
+
+        [AttributeUsage(AttributeTargets.Field | AttributeTargets.Enum)]
+        public class EnumStringAttribute : Attribute
+        {
+            public string Value { get; }
+
+            public EnumStringAttribute(string value)
+            {
+                Value = value ?? throw new ArgumentNullException(nameof(value));
+            }
+        }
+    }
+
     public class SearchClient
     {
         public event EventHandler<SearchCompleted> SearchCompleted;
@@ -35,55 +66,17 @@ namespace YifySearch
             return builder.ToString();
         }
 
-        private string GetSorting()
-        {
-            switch (Sorting)
-            {
-                case Sorting.Title: return "title";
-                case Sorting.Year: return "year";
-                case Sorting.Rating: return "rating";
-                case Sorting.Peers: return "peers";
-                case Sorting.Seeds: return "seeds";
-                case Sorting.DownloadCount: return "download_count";
-                case Sorting.LikeCount: return "like_count";
-                case Sorting.DateAdded: return "date_added";
-                default: return string.Empty;
-            }
-        }
-
-        private string GetOrdering()
-        {
-            switch (Ordering)
-            {
-                case Ordering.Descending: return "desc";
-                case Ordering.Ascending: return "asc";
-                default: return string.Empty;
-            }
-        }
-
-        private string GetQuality()
-        {
-            switch (Quality)
-            {
-                case Quality.HD: return "720p";
-                case Quality.FHD: return "1080p";
-                case Quality.UHD: return "2160p";
-                case Quality.ThreeDimensional: return "3D";
-                default: return string.Empty;
-            }
-        }
-
         private string BuildUri(int page)
         {
             var builder = new StringBuilder("https://yts.mx/api/v2/list_movies.json");
             builder.Append($"?limit={Limit}");
             builder.Append($"&page={page}");
-            builder.Append($"&quality={GetQuality()}");
+            builder.Append($"&quality={Quality.Get()}");
             builder.Append($"&minimum_rating={MinimumRating}");
             builder.Append($"&query_term={Query}");
             builder.Append($"&genre={BuildGenreList()}");
-            builder.Append($"&sort_by={GetSorting()}");
-            builder.Append($"&order_by={GetOrdering()}");
+            builder.Append($"&sort_by={Sorting.Get()}");
+            builder.Append($"&order_by={Ordering.Get()}");
             builder.Append($"&with_rt_ratings={WithRtRatings}");
 
             return builder.ToString();
@@ -102,7 +95,10 @@ namespace YifySearch
                 var movies = (JArray)data.movies;
 
                 if (movies.Count < 0)
+                {
                     SearchCompleted?.Invoke(this, new SearchCompleted(null, "No movies found", "No movies were found with this query. Please check for errors and try again."));
+                    return;
+                }
 
                 SearchCompleted?.Invoke(this,
                     new SearchCompleted(movies.ToObject<Movie[]>(), item.status, item.status_message));
