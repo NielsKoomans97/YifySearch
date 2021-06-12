@@ -94,22 +94,18 @@ namespace YifySearch
 
                 if (data["movies"] == null && (int)data["movie_count"] > 0)
                 {
-                    SearchCompleted?.Invoke(this, new SearchCompleted(null, "No movies found", "No movies were found with this query. There probably were no errors, but odds are that the entire array wasn't provided in the response. YTS, fix your shit."));
+                    SearchCompleted?.Invoke(this, new SearchCompleted(null, "ERROR", "No movies were found with this query. There probably were no errors, but odds are that the entire array wasn't provided in the response. YTS, fix your shit."));
                     return;
                 }
 
-                var movies = (JArray)data["movies"];
-
-                if (movies.Count < 0)
+                if ((int)data["movie_count"] < 0)
                 {
-                    SearchCompleted?.Invoke(this, new SearchCompleted(null, "No movies found", "No movies were found with this query. Please check for errors and try again."));
+                    SearchCompleted?.Invoke(this, new SearchCompleted(null, "ERROR", "No movies were found with this query. Please check for errors and try again."));
                     return;
                 }
 
                 SearchCompleted?.Invoke(this,
-                    new SearchCompleted(movies.ToObject<Movie[]>(), item.status, item.status_message));
-
-                movies.Clear();
+                    new SearchCompleted(data["movies"].ToObject<Movie[]>(), item.status, item.status_message));
             }
         }
 
