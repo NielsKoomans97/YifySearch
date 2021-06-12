@@ -18,15 +18,14 @@ namespace YifySearch
     {
         public static class EnumExtensions
         {
-            public static string Get(this Enum @enum)
+            public static string Get(this Enum val)
             {
-                var t = @enum.GetType();
-                var attributes = t.GetCustomAttributes<EnumStringAttribute>();
+                EnumStringAttribute[] attributes = (EnumStringAttribute[])val
+                    .GetType()
+                    .GetField(val.ToString())
+                    .GetCustomAttributes(typeof(EnumStringAttribute), false);
 
-                if (attributes == null || !attributes.Any())
-                    return string.Empty;
-
-                return attributes.FirstOrDefault().Value;
+                return attributes.Length > 0 ? attributes[0].Value : string.Empty;
             }
         }
 
@@ -91,8 +90,15 @@ namespace YifySearch
             {
                 var js = new JsonSerializer();
                 var item = js.Deserialize<dynamic>(jtr);
-                var data = item.data;
-                var movies = (JArray)data.movies;
+                var data = (JToken)item.data;
+
+                if (data["movies"] == null && (int)data["movie_count"] > 0)
+                {
+                    SearchCompleted?.Invoke(this, new SearchCompleted(null, "No movies found", "No movies were found with this query. There probably were no errors, but odds are that the entire array wasn't provided in the response. YTS, fix your shit."));
+                    return;
+                }
+
+                var movies = (JArray)data["movies"];
 
                 if (movies.Count < 0)
                 {
@@ -105,6 +111,16 @@ namespace YifySearch
 
                 movies.Clear();
             }
+        }
+
+        public void SaveConfig(string filePath)
+        {
+            File.WriteAllText(filePath, JsonConvert.SerializeObject(this));
+        }
+
+        public static SearchClient LoadConfig(string filePath)
+        {
+            return JsonConvert.DeserializeObject<SearchClient>(File.ReadAllText(filePath));
         }
     }
 }
